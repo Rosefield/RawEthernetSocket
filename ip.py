@@ -22,6 +22,37 @@ Header is of the form
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 '''
 
+class IPHeader:
+
+    def __init__(self, source_address, dest_address):
+
+        self.ihl = 5
+        self.type_of_service = 0
+        self.total_length = 0
+        self.id = 0
+        self.fragmentation_offset = 0
+        self.ttl = 255
+        self.protocol = socket.IPPROTO_TCP
+        self.checksum = 
+        self.source_address = source_address
+        self.dest_address = dest_address
+
+    def __init__(self, data):
+
+        unpacked = unpack('!BBHHHBBH4s4s' , self.ihl, self.type_of_service, self.total_length, self.id, self.fragmentation_offset, self.ttl, self.protocol, self.checksum, self.source_address, self.dest_address)
+        self.ihl = unpacked[0]
+        self.type_of_service = unpacked[1]
+        self.total_length = unpacked[2]
+        self.id = unpacked[3]
+        self.fragmentation_offset = unpacked[4]
+        self.ttl = unpacked[5]
+        self.protocol = unpacked[6]
+        self.checksum = unpacked[7]
+        self.source_address = unpacked[8]
+        self.dest_address = unpacked[9]
+
+    def to_data():
+        return pack('!BBHHHBBH4s4s' , self.ihl, self.type_of_service, self.total_length, self.id, self.fragmentation_offset, self.ttl, self.protocol, self.checksum, self.source_address, self.dest_address)
 
 def calcIpChecksum(header):
     checksum = 0
