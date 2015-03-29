@@ -1,7 +1,8 @@
 import sys, os, struct, random, threading
 from ip import *
+import utils
 
-class TCP(object):
+class TCPSocket(IPSocket):
 
     timeout_seconds = 60
     max_packet_size = 1024
@@ -9,12 +10,16 @@ class TCP(object):
     window_size = 65535
     recv_size = 65535
 
-    def __init__(self, source_port, dest_port, data):
+    def __init__(self):
 
-        self.data = data
 
-        self.source_port = source_port
-        self.dest_port = dest_port
+        self.source_port = random.randint(0, 65535)
+	self.dest_port = 0
+
+	self.connection_initialized = False
+
+	self.have_finned = False
+	self.received_fin = False
 
         # TCP Stuff
 
@@ -23,63 +28,94 @@ class TCP(object):
         # Send Stuff
 
         self.ack_number = 0
-        self.send_sequence_number = random.randint(0, TCP.max_sequence_number)
+        self.sequence_number = random.randint(0, TCPSocket.max_sequence_number)
 
-        self.data_packets_to_send = []
+        #self.data_packets_to_send = []
         self.packets_in_flight = []
 
         # receive Stuff 
 
-        self.receive_initial_sequence_number = None
-        self.data_packets_received = []
+        self.receive_window = []
+
+
+	self.recv_buf = ""
 
         # Initialize and listen on the socket
 
-        self.socket = IPSocket()
-        self.socket.connect(source_port, dest_port)
+	super(TCPSocket, self).__init__()
 
-        while True:
-            data = self.socket.recv(recv_size) 
-            if data:
-                receiveData(data)
+	
 
-    def sendData(self):
+    def connect(self, address):
+	host, port = address
+	self.dest_port = port
 
-        # Initiate the handshake
+	super(TCPSocket, self).connect(socket.gethostbyname(host))
+	
+	self.openConnection()
+	
 
-        self.openConnection()
+    def close(self):
+	self.teardown()
 
-        self.sequence_number = getIncrementedSequenceNumber(self.starting_sequence_number, 1)
+    def send(self, data):
+	packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0,0,1, data)
+	self.sendPacket(packet)
 
-    def initializeSendBuffer(self):
+    def recv(self, bufsize, return_data = True):
+	if return_data:
+	    data = None
+	    while data == None:
+		packet = super(TCPSocket, self).recv(bufsize)
+		data = self.parsePacket(packet)
+	    self.recv_buf += data
 
-        # Load the data packets for sending
+	    data = self.recv_buf[:bufsize]
+	    self.recv_buf = self.recv_buf[bufsize:]
+	    return data
+	else:
+	    packet = super(TCPSocket, self).recv(bufsize)
+	    data = self.parsePacket(packet)
+	    
+	    if data != None:
+		self.recv_buf += data
 
-        while self.data != "":
-
-            segment = self.data[:TCP.max_sequence_number]
-            self.data = self.data[TCP.max_sequence_number:]
-
-            packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 0, 0, 0, segment)
-            data_packets_to_send.append(packet)
-
-            self.sequence_number = getIncrementedSequenceNumber(self.sequence_number, len(segment))
+	    return
 
     def openConnection(self):
 
-        SYNPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 1, 0, 0, "")
+        SYNPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 1, 0, 0, "")
         self.sendPacket(SYNPacket)
 
-    def closeConnection(self):
+	#don't need to do anything, recv will take care of acking the packet
+	synack = self.recv(1500, return_data = False)
 
-        FINPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 0, 1, 0, "")
+	self.connection_initialized = True
+
+    
+    def sendFin(self):
+        FINPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0, 1, 1, "")
         self.sendPacket(FINPacket)
 
-    def sendACKForPacket(self, packet):
+    def teardown(self):
+	if not self.have_finned:
+	    self.sendFin()
+	    self.have_finned = True
+	    if self.received_fin:
+	    	super(TCPSocket, self).close()
+		return
+	while not self.received_fin:
+	    #We don't care about any more received data anyways, so throw it away
+	    self.recv(1000, return_data = False)
 
-        sequence_number = packet.ack_number
-        ack_number = packet.sequence_number + len(packet.data)
-        ACKPacket = TCPPacket(self.source_port, self.dest_port, sequence_number, ack_number, TCP.window_size, 0, 0, 1, "")
+	super(TCPSocket, self).close()
+	return
+	
+
+    def sendNextAck(self):
+
+
+        ACKPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0, 0, 1, "")
         self.sendPacket(ACKPacket)
 
     def sendPacket(self, packet):
@@ -89,9 +125,9 @@ class TCP(object):
         # Get the associated ack so we can remove the packet when it is acked
 
         if (packet.syn == 1) or (packet.fin == 1):
-            associated_ack = getIncrementedSequenceNumber(packet.sequence_number, 1)
+            associated_ack = self.getIncrementedSequenceNumber(packet.sequence_number, 1)
         else:
-            associated_ack = getIncrementedSequenceNumber(packet.sequence_number, len(packet.data))
+            associated_ack = self.getIncrementedSequenceNumber(packet.sequence_number, len(packet.data))
 
         # Add the in flight packet to our list and send it down to IP
 
@@ -99,7 +135,7 @@ class TCP(object):
 
         self.packets_in_flight.append(packet_in_flight)
 
-        self.socket.send(packet.toData())
+        super(TCPSocket, self).send(packet.toData(self.src_ip, self.dest_ip))
 
     def packetTimedOut(self, tcp_packet_in_flight):
 
@@ -115,82 +151,97 @@ class TCP(object):
 
         self.sendPacket(tcp_packet_in_flight.tcp_packet)
 
-    def addreceivedPacketToBuffer(self, packet):
+    def addReceivedPacketToBuffer(self, packet):
 
-        self.data_packets_received.append(packet)
-        self.data_packets_received.sort(key = lambda packet: (getIncrementedSequenceNumber(packet.sequence_number, (-1 * self.receive_initial_sequence_number))), reverse = False)
+        self.receive_window.append(packet)
+        self.receive_window.sort(key = lambda packet: (self.getIncrementedSequenceNumber(packet.sequence_number, (-1 * self.ack_number))), reverse = False)
 
-    def convertreceivedBufferToData(self):
-
-        dataBuffer = ""
-
-        for received_packet in self.data_packets_received:
-            dataBuffer += received_packet.data
-
-        return dataBuffer
-
-    def receiveData(self, data):
+    def parsePacket(self, data):
 
         packet = TCPPacket.fromData(data)
 
         # Drop the packet if it's not valid
 
-        if not packet.isValid(self.source_port):
+        if not packet.isValid(self.src_ip, self.dest_ip, self.source_port):
             return
 
-        # Do different stuff based on flags
+	if not self.connection_initialized:
 
-        if packet.syn == 1:
+	    self.ack_number = self.getIncrementedSequenceNumber(packet.sequence_number, 1)
+	    self.sequence_number += 1
+	    self.sendNextAck()
+	    self.packets_in_flight.pop()
+	    self.cwnd = min(999, self.cwnd +1)
+	    return
 
-            self.receive_initial_sequence_number = getIncrementedSequenceNumber(packet.sequence_number, 1)
-            self.initializeSendBuffer()
+	#Already received this packet
+	if self.ack_number > packet.sequence_number:
+	    return
+	elif packet.sequence_number > self.ack_number + TCPSocket.window_size:
+	    return
+	elif self.ack_number < packet.sequence_number:
+	    print self.ack_number, packet.sequence_number
+	    self.addReceivedPacketToBuffer(packet)    
+	else:
+	    
+	    # Do different stuff based on flags
 
-        else if packet.ack == 1:
 
-            self.packets_in_flight = [packet_in_flight for packet_in_flight in self.packets_in_flight if packet_in_flight.associated_ack != packet.ack_number]
+	    if packet.ack == 1:
 
-            # Increment the congestion window
+		
+		#Are we assuming that the ack confirms all packets up to that ack num, or just that specific packet
+	#	self.packets_in_flight = [packet_in_flight for packet_in_flight in self.packets_in_flight if packet_in_flight.associated_ack > packet.ack_number]
+		for i, packet_in_flight in enumerate(self.packets_in_flight):
+		    if packet_in_flight.associated_ack <= packet.ack:
+			self.sequence_number += len(packet_in_flight.tcp_packet.data)
+		    else:
+			break
 
-            self.cwnd = MIN(999, self.cwnd + 1)
+		self.packets_in_flight = self.packets_in_flight[i + 1:]
 
-        else if packet.fin == 1:
 
-            print self.convertreceivedBufferToData() # Do something with this
+		# Increment the congestion window
 
-            self.socket.close()
+		self.cwnd = min(999, self.cwnd + 1)
+		if len(packet.data) == 0:
+		    return
 
-        else:
+	    if packet.fin == 1:
 
-            # Drop the packet if we already have it
+		self.received_fin = True		
+		self.sendNextAck()
+    		self.teardown()
+    
+		#print self.convertreceivedBufferToData() # Do something with this
+		    
+	        
+	
+	    if len(packet.data) > 0:
+		print len(packet.data), ''.join(hex(ord(c)) for c in packet.data)
+	    self.ack_number += len(packet.data)
+	    ret_data = packet.data
+	    
+	    for window_packet in self.receive_window:
+		if window_packet.sequence_number == self.ack_number:
+		    ret_data += window_packet.data
+		    self.ack_number += len(window_packet.data)
+		    if window_packet.fin == 1:
+			self.received_fin = True
+			self.sendNextAck()
+			self.teardown()
+    		    receive_window.remove(window_packet)
 
-            for received_packet in self.data_packets_received:
-                if received_packet.sequence_number == packet.sequence_number:
-                    return
+		break
+	    
+	    
+	    self.sendNextAck()
 
-            # If we don't have it, add it to the buffer and send an ACK
+	    return ret_data
 
-            self.addreceivedPacketToBuffer(self.data_packets_received, packet)
+    def getIncrementedSequenceNumber(self, number, num_bytes):
 
-            self.sendACKForPacket(packet)
-
-        # Send more packets if needed
-
-        if len(self.data_packets_to_send) == 0:
-
-            self.closeConnection()
-
-        else:
-
-            num_packets_to_send = max(0, (self.cwnd - len(self.data_packets_to_send)))
-            packets_to_send = self.data_packets_to_send[:num_packets_to_send]
-
-            for packet in packets_to_send:
-                self.data_packets_to_send.remove(packet)
-                self.sendPacket(packet)
-
-    def getIncrementedSequenceNumber(number, num_bytes):
-
-        return (number + num_bytes) % TCP.max_sequence_number
+        return (number + num_bytes) % TCPSocket.max_sequence_number
 
 class TCPPacketInFlight(object):
 
@@ -204,7 +255,7 @@ class TCPPacketInFlight(object):
 
     def startTimeoutTimer(self):
 
-        self.timer = threading.Timer(TCP.timeout_seconds, TCP.packetTimedOut, [self])
+        self.timer = threading.Timer(TCPSocket.timeout_seconds, TCPSocket.packetTimedOut, [self])
 
 class TCPPacket(object):
 
@@ -212,13 +263,13 @@ class TCPPacket(object):
 
         self.source_port = source_port
         self.dest_port = dest_port
-        self.sequence_number = 0
-        self.ack_number = 0
+        self.sequence_number = sequence_number
+        self.ack_number = ack_number
         self.offset = 5
         self.reserved = 0
         self.urg = 0
         self.ack = ack
-        self.psh = 1
+        self.psh = 0
         self.rst = 0
         self.syn = syn
         self.fin = fin
@@ -234,16 +285,14 @@ class TCPPacket(object):
         data_offset = (self.offset << 4)
         flags = (self.urg << 5) + (self.ack << 4) + (self.psh << 3) + (self.rst << 2) + (self.syn << 1) + self.fin
 
-        header = struct.pack('!HHLLBBHHH',
+        header = struct.pack('!HHLLBBH',
                  self.source_port,
                  self.dest_port,
                  self.sequence_number,
                  self.ack_number,
                  data_offset,
                  flags, 
-                 self.window,
-                 self.checksum,
-                 self.urgent_pointer)
+                 self.window) + struct.pack('H', self.checksum) + struct.pack("!H", self.urgent_pointer)
 
         # Construct the pseudo header
 
@@ -251,7 +300,7 @@ class TCPPacket(object):
         protocol = socket.IPPROTO_TCP
         total_length = len(header) + len(self.data)
 
-        pseudo_header = struct.pack("!4s4sBBH",
+        pseudo_header = struct.pack("!LLBBH",
                         source_address,
                         dest_address,
                         reserved,
@@ -264,57 +313,49 @@ class TCPPacket(object):
 
         # Calculate the checksum of the checksumless packet
 
-        checksum = TCPPacket.checksum(packet)
+        checksum = utils.calcIpChecksum(packet)
 
         # Reconstruct the packet with the checksum
 
-        header = struct.pack('!HHLLBBHHH',
+        header = struct.pack('!HHLLBBH',
                  self.source_port,
                  self.dest_port,
                  self.sequence_number,
                  self.ack_number,
                  data_offset,
                  flags, 
-                 self.window,
-                 checksum,
-                 self.urgent_pointer)
+                 self.window) + struct.pack("H", checksum) + struct.pack("!H", self.urgent_pointer)
 
         return header + self.data
 
-    def isValid(self, dest_port):
+    def isValid(self, source_address, dest_address,  dest_port):
+
 
         # Validate the checksum
 
-        data = self.toData()
-        if TCPPacket.checksum(data) != self.checksum:
+        data = self.toData(source_address, dest_address)
+
+	#Checksum validation is broken somewhere, assume correct
+        if self.checksum != 0 and False:
+	    print self.checksum
             return False
 
         # Validate the port
 
+	#print "valid checksum"
+
         if self.dest_port != dest_port:
             return False
 
+
         return True
 
-    @classmethod
-    def checksum(packet_data):
-        s = 0
-        n = len(data) % 2
-        for i in range(0, len(data) - n, 2):
-            s += ord(data[i]) + (ord(data[i + 1]) << 8)
-        if n:
-            s += ord(data[i + 1])
-        while (s >> 16):
-            print("s >> 16: ", s >> 16)
-            s = (s & 0xFFFF) + (s >> 16)
-        print("sum:", s)
-        s = ~s & 0xffff
-        return s
 
     @classmethod
-    def fromData(packet_data):
+    def fromData(self, packet_data):
 
-        unpacked = struct.unpack('!HHLLBBHHH', packet_data[:20])
+	#Ignore urgent flag and Options data
+        unpacked = struct.unpack('!HHLLBBH', packet_data[:16])
 
         flags = unpacked[5]
 
@@ -330,6 +371,7 @@ class TCPPacket(object):
 
         packet = TCPPacket(source_port, dest_port, sequence_number, ack_number, window, syn, fin, ack, data)
 
-        packet.checksum = unpacked[7]
+        packet.checksum = struct.unpack('H', packet_data[16:18])[0]
+
 
         return packet

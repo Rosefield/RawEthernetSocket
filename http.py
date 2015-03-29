@@ -1,6 +1,7 @@
 import sys, os, struct, re, traceback 
 from bs4 import BeautifulSoup
 
+NL = "\r"
 CRLF = "\r\n\r\n"
 
 class HTTPGet(object):
