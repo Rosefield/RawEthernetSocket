@@ -4,55 +4,54 @@ import tcp, ip
 
 class raw_tcp_socket:
     def __init__(self):
-	self.recv_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.IPPROTO_IP)
-	self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
 	
 	
-	self.recv_sock.bind(("ens33", 0))
-	self.send_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 
 	self.src_port = 51000
-	self.src_ip = socket.gethostbyname(socket.gethostname())
 
 	self.dest_ip = ""
 	self.dest_port = 0
 	#self.data = ""
 
+	self.tcp = ""
+	self.ip = ""
 
-    def connect(address):
+    def connect(self, address):
+	print address
 	host, port = address
-	self.dest_ip = socket.gethostbyname(host)\
+	self.dest_ip = socket.gethostbyname(host)
+	self.dest_ip = struct.unpack("!I", socket.inet_aton(self.dest_ip))[0]
 	self.dest_port = port
+	self.tcp = tcp.TCP(self.src_port, self.dest_port)
+	self.ip = ip.IP(self.src_ip, self.dest_ip)
 
-	tcp.startHandshake(dest_ip, dest_port)
+	self.tcp.startHandshake()
 
 
 	return
 
-    def send(data):
-	packet = tcp.makeTcpPacket(src_port, dest_ip, data)
-	packet = ip.makeIpPacket(src_ip, dest_ip, packet)
+    def send(self, data):
+	packet = self.tcp.makeTcpPacket(data)
 
-	send_sock.sendto(packet, (self.dest_ip, 0))
+	self.addIpHeaderAndSend(packet)
+
+    def addIpHeaderAndSend(self, packet):
+	packet = ip.makeIpPacket(packet)
+
+	self.send_sock.sendto(packet, (self.dest_ip, 0))
 	return
 
-    def recv(bufsize):
-	'''
-	if len(self.data) >= 0
-	    result = self.data[:bufsize]
-	    self.data = self.data[bufsize:]
-	    return result	
-	'''
 
+    def recv(self, bufsize):
 	data = None
 
 	while data == None:
-	    packet = sock.recvfrom(65536)
-	    if ip.validIpPacket(src_ip, packet):
+	    packet = self.recv_sock.recvfrom(65536)
+	    if ip.validIpPacket(self.src_ip, packet):
 		ip.parseIpPacket(packet)
 		packet = ip.getNextIpPacket()
 		if packet != None:
-		    if tcp.validTcpPacket(src_port, packet):
+		    if tcp.validTcpPacket(packet):
 			tcp.parseTcpPacket(packet)
 			data = tcp.getNextTcpPacket()
 
