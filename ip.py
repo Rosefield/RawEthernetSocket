@@ -112,8 +112,7 @@ class IPSocket(ethernet.EthernetSocket):
 
 	return packet
 
-    def validIpPacket(self, packet):
-	header = self.extractIpHeader(packet)
+    def validIpPacket(self, header):
 	checksum = utils.calcIpChecksum(header)
 	if checksum != 0:
 	    print checksum
@@ -147,8 +146,11 @@ class IPSocket(ethernet.EthernetSocket):
 
 	while data == None:
 	    packet = super(IPSocket, self).recv(65536)
-	    if self.validIpPacket(packet):
-		data = self.extractIpData(packet)
+	    header = packet[:20]
+	    if self.validIpPacket(header):
+		header = IPHeader(header)
+		#remove any possible trailing ethernet padding
+		data = packet[20: header.total_length]
 	
 	return data
 
@@ -156,7 +158,8 @@ class IPSocket(ethernet.EthernetSocket):
 	
 
 	self.dest_ip = struct.unpack("!I", socket.inet_aton(dest_ip))[0]
-	super(IPSocket, self).connect()
+	#IP needed for arp
+	super(IPSocket, self).connect(self.src_ip)
 	return
 
     def extractIpHeader(self, data):
@@ -168,7 +171,7 @@ class IPSocket(ethernet.EthernetSocket):
     #TODO: implement function to close socket
     def close(self):
 
-	self.recv_sock.close()
-	self.send_sock.close()
+
+	super(IPSocket, self).close()
 
 	return

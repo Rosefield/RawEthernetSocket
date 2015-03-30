@@ -192,6 +192,7 @@ class TCPSocket(IPSocket):
 		
 		#Are we assuming that the ack confirms all packets up to that ack num, or just that specific packet
 	#	self.packets_in_flight = [packet_in_flight for packet_in_flight in self.packets_in_flight if packet_in_flight.associated_ack > packet.ack_number]
+		i = 0
 		for i, packet_in_flight in enumerate(self.packets_in_flight):
 		    if packet_in_flight.associated_ack <= packet.ack:
 			self.sequence_number += len(packet_in_flight.tcp_packet.data)
@@ -209,6 +210,8 @@ class TCPSocket(IPSocket):
 
 	    if packet.fin == 1:
 
+		print "received fin"
+	    
 		self.received_fin = True		
 		self.sendNextAck()
     		self.teardown()
