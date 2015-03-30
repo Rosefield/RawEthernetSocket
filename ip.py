@@ -2,6 +2,7 @@ import sys, os
 import struct
 import utils
 import socket
+import ethernet
 
 #Need to keep track of state for the Identification field and fragment offset
 
@@ -59,17 +60,19 @@ class IPHeader:
 
 
 #Does not deal with receiving/sending fragments
-class IPSocket(object):
+class IPSocket(ethernet.EthernetSocket):
     def __init__(self):
-	self.recv_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x800)) #Capture only IP packets 
-	self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+	#self.recv_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x800)) #Capture only IP packets 
+	#self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
 	self.src_ip = socket.gethostbyname(socket.gethostname())
+	self.src_ip = struct.unpack("!I", socket.inet_aton(self.src_ip))[0]
 	
 	#self.recv_sock.bind((self.src_ip, 0))
-	self.send_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
-	self.src_ip = struct.unpack("!I", socket.inet_aton(self.src_ip))[0]
+	#self.send_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 	self.id = 18
 	self.dest_ip = ""
+
+	super(IPSocket, self).__init__()
 
 
     #Header always 20 Bytes as no options are used
@@ -135,15 +138,15 @@ class IPSocket(object):
 
 	self.id += 1
 
-	return self.send_sock.sendto(packet, (str(self.dest_ip), 0))
+	return super(IPSocket, self).send(packet)
+
+	#return self.send_sock.sendto(packet, (str(self.dest_ip), 0))
 
     def recv(self, bufsize):
 	data = None
 
 	while data == None:
-	    packet = self.recv_sock.recv(65536)
-	    #skip ethernet header
-	    packet = packet[14:]
+	    packet = super(IPSocket, self).recv(65536)
 	    if self.validIpPacket(packet):
 		data = self.extractIpData(packet)
 	
@@ -153,6 +156,7 @@ class IPSocket(object):
 	
 
 	self.dest_ip = struct.unpack("!I", socket.inet_aton(dest_ip))[0]
+	super(IPSocket, self).connect()
 	return
 
     def extractIpHeader(self, data):

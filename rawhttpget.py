@@ -1,6 +1,5 @@
 import sys, os, socket
 import urlparse
-import ip
 import tcp
 import struct
 
