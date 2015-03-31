@@ -48,11 +48,13 @@ class HTTPGet(object):
         sys.exit()
 
     def saveData(data):
+
         file = open(getFilename(), 'w')
         file.write(data)
         file.close()
 
     def getFilename():
+        
         if self.url[-1] == '/':
             return "index.html"
         else:
