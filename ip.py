@@ -8,7 +8,21 @@ class IP(object):
 
     def __init__(self):
 
-    def sendData(data):
+    def sendTCPPacketData(tcp_packet_data):
+
+        # Send it
+        # TODO: Is the remote IP correct? 
+        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
+        # TODO: Does the protocol identifier match the contents of the encapsulated header?
+        # TODO: Handle timeout
+
+    def recieveIPPacketData(ip_packet_data):
+
+        ip_packet = IPPacket.fromData(ip_packet_data)
+
+        if ip_packet.isValid():
+            TCPPacket.recieveTCPPacketData(ip_packet.data)
+
         # Send it
         # TODO: Is the remote IP correct? 
         # TODO: Is the checksum correct? (Is this not handled by the kernel?)
@@ -51,6 +65,10 @@ class IPPacket(object):
                  self.destination_address)
 
         return header + self.data
+
+    def isValid():
+
+        return True
 
     @classmethod
     def fromData(packet_data):

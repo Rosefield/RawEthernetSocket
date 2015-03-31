@@ -4,6 +4,27 @@ class TCP(object):
 
     def __init__(self):
 
+    def sendHTTPRequest(tcp_packet_data):
+
+        # Send it
+        # TODO: Is the remote IP correct? 
+        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
+        # TODO: Does the protocol identifier match the contents of the encapsulated header?
+        # TODO: Handle timeout
+
+    def recieveTCPPacketData(tcp_packet_data):
+
+        tcp_packet = TCPPacket.fromData(tcp_packet_data)
+
+        if tcp_packet.isValid():
+            HTTPPacket.recieveHTTPPacketData(tcp_packet.data)
+
+        # Send it
+        # TODO: Is the remote IP correct? 
+        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
+        # TODO: Does the protocol identifier match the contents of the encapsulated header?
+        # TODO: Handle timeout
+
 class TCPPacket(object):
 
     def __init__(self, source_port, dest_port, sequence_number, ack_number, window, syn, fin, ack, data):
@@ -78,6 +99,10 @@ class TCPPacket(object):
                  self.urgent_pointer)
 
         return header + self.data
+
+    def isValid():
+
+        return True
 
     @classmethod
     def fromData(packet_data):
