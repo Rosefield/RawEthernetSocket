@@ -1,48 +1,84 @@
 import sys, os, struct
 
-class TCPHeader:
+class TCP(object):
 
-    def __init__(self, source_port, dest_port, seq, ack_seq, window, syn, fin, ack):
+    def __init__(self):
 
-		self.source_port = source_port   # source port
-		self.dest_port = dest_port
-		self.seq = seq
-		self.ack_seq = ack_seq
-		self.data_offset = 5
-		self.fin = fin
-		self.syn = syn
-		self.rst = 0
-		self.psh = 0
-		self.ack = ack
-		self.urg = 0
-		self.window = window
-		self.checksum = 0
-		self.urgent_pointer = 0
+class TCPPacket(object):
 
-    def __init__(self, data):
+    def __init__(self, source_port, dest_port, sequence_number, ack_number, window, syn, fin, ack, data):
 
-        unpacked = unpack('!BBHHHBBH4s4s' , self.ihl, self.type_of_service, self.total_length, self.id, self.fragmentation_offset, self.ttl, self.protocol, self.checksum, self.source_address, self.dest_address)
+        self.source_port = source_port
+        self.dest_port = dest_port
+        self.sequence_number = 0
+        self.ack_number = 0
+        self.offset = 5
+        self.reserved = 0
+        self.urg = 0
+        self.ack = ack
+        self.psh = 1
+        self.rst = 0
+        self.syn = syn
+        self.fin = fin
+        self.window = window
+        self.checksum = 0 # Set this later with the pseudo header
+        self.urgent_pointer = 0
+        self.data = data
 
-    def to_data():
-        return pack('!BBHHHBBH4s4s' , self.ihl, self.type_of_service, self.total_length, self.id, self.fragmentation_offset, self.ttl, self.protocol, self.checksum, self.source_address, self.dest_address)
+    def toData(self, source_address, dest_address):
 
+        # Construct the checksumless header
 
+        data_offset = (self.offset << 4)
+        flags = (self.urg << 5) + (self.ack << 4) + (self.psh << 3) + (self.rst << 2) + (self.syn << 1) + self.fin
 
-#Implement TCP Stack
-STATE = 0
+        header = struct.pack('!HHLLBBHHH',
+                 self.source_port,
+                 self.dest_port,
+                 self.sequence_number,
+                 self.ack_number,
+                 data_offset,
+                 flags, 
+                 self.window,
+                 self.checksum,
+                 self.urgent_pointer)
 
-def makeTcpHeader(src_port, dest_port, data):
+        # Construct the pseudo header
 
-    return
+        reserved = 0
+        protocol = socket.IPPROTO_TCP
+        total_length = len(header) + len(self.data)
 
-def makeTcpPacket(src_port, dest_port, data):
-    header = makeTcpHeader(src_port, dest_port, data)
-    packet = header + data
+        pseudo_header = struct.pack("!4s4sBBH",
+                        source_address,
+                        dest_address,
+                        reserved,
+                        protocol,
+                        total_length)
 
-    return packet
+        # Construct the checksumless packet
 
-def extractTcpHeader(packet):
-    return packet[:20]    
+        packet = pseudo_header + header + self.data
 
-def extractTcpPacket(packet):
-    return packet[20:]
+        # Calculate the checksum of the checksumless packet
+
+        checksum = checksum(packet)
+
+        # Reconstruct the packet with the checksum
+
+        header = struct.pack('!HHLLBBHHH',
+                 self.source_port,
+                 self.dest_port,
+                 self.sequence_number,
+                 self.ack_number,
+                 data_offset,
+                 flags, 
+                 self.window,
+                 checksum,
+                 self.urgent_pointer)
+
+        return header + self.data
+
+    @classmethod
+    def getData(packet_data):
+        return packet_data[20:]

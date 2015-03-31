@@ -6,16 +6,18 @@ import struct
 
 class IP(object):
 
+    def __init__(self):
+
     def sendData(data):
         # Send it
         # TODO: Is the remote IP correct? 
-        # TODO: Is the checksum correct? 
+        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
         # TODO: Does the protocol identifier match the contents of the encapsulated header?
         # TODO: Handle timeout
 
 class IPPacket(object):
 
-    def __init__(self, source, destination, data):
+    def __init__(self, source_address, destination_address, data):
 
         self.version = 4
         self.ihl = 5
@@ -27,8 +29,8 @@ class IPPacket(object):
         self.ttl = 255
         self.protocol = socket.IPPROTO_TCP
         self.checksum = 0 # Will be filled by kernel
-        self.source = socket.inet_aton(source)
-        self.destination = socket.inet_aton(destination)
+        self.source_address = source_address
+        self.destination_address = destination_address
         self.data = data
 
     def toData(self):
@@ -36,20 +38,20 @@ class IPPacket(object):
         version_ihl = (self.version << 4) + self.ihl
         flags_offset = (self.flags << 13) + self.offset
 
-        ip_header = struct.pack("!BBHHHBBH4s4s",
-                    version_ihl,
-                    self.tos,
-                    self.tl,
-                    self.id,
-                    flags_offset,
-                    self.ttl,
-                    self.protocol,
-                    self.checksum,
-                    self.source,
-                    self.destination)
+        header = struct.pack("!BBHHHBBH4s4s",
+                 version_ihl,
+                 self.tos,
+                 self.total_length,
+                 self.id,
+                 flags_offset,
+                 self.ttl,
+                 self.protocol,
+                 self.checksum,
+                 self.source_address,
+                 self.destination_address)
 
-        return ip_header + self.data
+        return header + self.data
 
     @classmethod
     def getData(packet_data):
-        return data[20:]
+        return packet_data[20:]
