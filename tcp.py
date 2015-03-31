@@ -2,28 +2,24 @@ import sys, os, struct
 
 class TCP(object):
 
-    def __init__(self):
+    def __init__(self, source_port, dest_port):
 
-    def sendHTTPRequest(tcp_packet_data):
+        self.source_port = source_port
+        self.dest_port = dest_port
+
+        self.cwnd = 1
+
+    def sendHTTPRequest(http_request):
 
         # Send it
-        # TODO: Is the remote IP correct? 
-        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
-        # TODO: Does the protocol identifier match the contents of the encapsulated header?
         # TODO: Handle timeout
 
     def recieveTCPPacketData(tcp_packet_data):
 
         tcp_packet = TCPPacket.fromData(tcp_packet_data)
 
-        if tcp_packet.isValid():
+        if tcp_packet.isValid(self.source_port):
             HTTPPacket.recieveHTTPPacketData(tcp_packet.data)
-
-        # Send it
-        # TODO: Is the remote IP correct? 
-        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
-        # TODO: Does the protocol identifier match the contents of the encapsulated header?
-        # TODO: Handle timeout
 
 class TCPPacket(object):
 
@@ -83,7 +79,7 @@ class TCPPacket(object):
 
         # Calculate the checksum of the checksumless packet
 
-        checksum = checksum(packet)
+        checksum = TCPPacket.checksum(packet)
 
         # Reconstruct the packet with the checksum
 
@@ -100,9 +96,35 @@ class TCPPacket(object):
 
         return header + self.data
 
-    def isValid():
+    def isValid(self, dest_port):
+
+        # Validate the checksum
+
+        data = self.toData()
+        if TCPPacket.checksum(data) != self.checksum:
+            return False
+
+        # Validate the port
+
+        if self.dest_port != dest_port:
+            return False
 
         return True
+
+    @classmethod
+    def checksum(packet_data):
+        s = 0
+        n = len(data) % 2
+        for i in range(0, len(data) - n, 2):
+            s += ord(data[i]) + (ord(data[i + 1]) << 8)
+        if n:
+            s += ord(data[i + 1])
+        while (s >> 16):
+            print("s >> 16: ", s >> 16)
+            s = (s & 0xFFFF) + (s >> 16)
+        print("sum:", s)
+        s = ~s & 0xffff
+        return s
 
     @classmethod
     def fromData(packet_data):

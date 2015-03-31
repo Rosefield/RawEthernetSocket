@@ -1,19 +1,15 @@
-import sys, os
-import struct
-
-# Questions
-# Doesn't the kernel handle IP checksums?
+import sys, os, struct
 
 class IP(object):
 
-    def __init__(self):
+    def __init__(self, source_address, dest_address):
+
+        self.source_address = source_address
+        self.dest_address = dest_address
 
     def sendTCPPacketData(tcp_packet_data):
 
         # Send it
-        # TODO: Is the remote IP correct? 
-        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
-        # TODO: Does the protocol identifier match the contents of the encapsulated header?
         # TODO: Handle timeout
 
     def recieveIPPacketData(ip_packet_data):
@@ -22,12 +18,6 @@ class IP(object):
 
         if ip_packet.isValid():
             TCPPacket.recieveTCPPacketData(ip_packet.data)
-
-        # Send it
-        # TODO: Is the remote IP correct? 
-        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
-        # TODO: Does the protocol identifier match the contents of the encapsulated header?
-        # TODO: Handle timeout
 
 class IPPacket(object):
 
@@ -66,8 +56,11 @@ class IPPacket(object):
 
         return header + self.data
 
-    def isValid():
+    def isValid(self):
 
+        # TODO: Is the remote IP correct? 
+        # TODO: Is the checksum correct? (Is this not handled by the kernel?)
+        # TODO: Does the protocol identifier match the contents of the encapsulated header?
         return True
 
     @classmethod

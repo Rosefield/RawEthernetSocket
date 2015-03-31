@@ -1,8 +1,5 @@
-import sys, os
-import struct
-import re
+import sys, os, struct, re, traceback 
 from bs4 import BeautifulSoup
-import traceback
 
 CRLF = "\r\n\r\n"
 
@@ -12,7 +9,7 @@ class HTTPGet(object):
 
         self.url = url
 
-    def execute():
+    def execute(self):
 
         parsed_url = urlparse.urlparse(self.url)
 
@@ -22,39 +19,39 @@ class HTTPGet(object):
 
         TCP.sendHTTPRequest(request)
 
-    def recieveHTTPResponse(http_response):
+    def recieveHTTPResponse(self, http_response):
 
         if getStatusCode(http_response) == 200:
             saveData(http_response)
         else:
             throwError()
 
-    def getStatusCode(http_response):
+    def getStatusCode(self, http_response):
 
         try:
             return int(re.search("HTTP/1.1\s(\d+)\s", data).group(1))
         except AttributeError:
             throwError()
 
-    def getBody(http_response):
+    def getBody(self, http_response):
 
         crlf_position = http_reply.find(CRLF)
         return http_response[(crlf_position + 4):]
 
-    def throwError():
+    def throwError(self):
 
         print "An error occured."
         traceback.print_exc()
         sys.exit()
 
-    def saveData(data):
+    def saveData(self, data):
 
         file = open(getFilename(), 'w')
         file.write(data)
         file.close()
 
-    def getFilename():
-        
+    def getFilename(self):
+
         if self.url[-1] == '/':
             return "index.html"
         else:
