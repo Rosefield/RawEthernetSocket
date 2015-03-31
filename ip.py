@@ -22,13 +22,13 @@ class IPPacket(object):
         self.version = 4
         self.ihl = 5
         self.tos = 0
-        self.total_length = 0 # Will be filled by kernel
+        self.total_length = 0 # Will be set by the kernel
         self.id = 54321
         self.flags = 0
         self.offset = 0
         self.ttl = 255
         self.protocol = socket.IPPROTO_TCP
-        self.checksum = 0 # Will be filled by kernel
+        self.checksum = 0 # Will be set by the kernel
         self.source_address = source_address
         self.destination_address = destination_address
         self.data = data
@@ -53,5 +53,16 @@ class IPPacket(object):
         return header + self.data
 
     @classmethod
-    def getData(packet_data):
-        return packet_data[20:]
+    def fromData(packet_data):
+
+        unpacked = struct.unpack("!BBHHHBBH4s4s", packet_data[:20])
+
+        source_address = unpacked[8]
+        destination_address = unpacked[9]
+        data = packet_data[20:]
+
+        packet = IPPacket(source_address, destination_address, data)
+
+        packet.checksum = unpacked[7]
+
+        return packet

@@ -80,5 +80,24 @@ class TCPPacket(object):
         return header + self.data
 
     @classmethod
-    def getData(packet_data):
-        return packet_data[20:]
+    def fromData(packet_data):
+
+        unpacked = struct.unpack('!HHLLBBHHH', packet_data[:20])
+
+        flags = unpacked[5]
+
+        source_port = unpacked[0]
+        dest_port = unpacked[1]
+        sequence_number = unpacked[2]
+        ack_number = unpacked[3]
+        window = unpacked[6]
+        syn = ((flags & 2) >> 1)
+        fin = flags & 1
+        ack = ((flags & 16) >> 4)
+        data = packet_data[20:]
+
+        packet = TCPPacket(source_port, dest_port, sequence_number, ack_number, window, syn, fin, ack, data)
+
+        packet.checksum = unpacked[7]
+
+        return packet
