@@ -20,26 +20,39 @@ class TCP(object):
         self.sequence_number = random.randint(0, TCP.max_sequence_number)
         self.ack_number = 0
 
+        self.data_packets_to_send = []
         self.packets_in_flight = []
 
-        # Buffers
-
-        send_buffer = ""
-        self.send_buffer_sent_position = 0
 
     def sendHTTPRequest(self, http_request):
 
-        self.send_buffer = http_request
+        # Initiate the handshake
 
-        self.initiateHandshake()
+        self.openConnection()
 
-    def initiateHandshake(self):
-        
+        self.sequence_number = getIncrementedSequenceNumber(self.starting_sequence_number, 1)
+
+        # Load the data packets for sending
+
+        while http_request != "":
+
+            segment = http_request[:TCP.max_sequence_number]
+            http_request = http_request[TCP.max_sequence_number:]
+
+            packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 0, 0, 0, segment)
+            data_packets_to_send.append(packet)
+
+            self.sequence_number = getIncrementedSequenceNumber(self.sequence_number, len(segment))
+
+    def openConnection(self, http_request):
+
         SYNPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 1, 0, 0, "")
-        
-        self.sequence_number = getIncrementedSequenceNumber(self.sequence_number, 1)
-
         self.sendPacket(SYNPacket)
+
+    def closeConnection(self):
+
+        FINPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 0, 1, 0, "")
+        self.sendPacket(FINPacket)
 
     def sendPacket(self, packet):
 
@@ -55,6 +68,7 @@ class TCP(object):
         # Add the in flight packet to our list and send it down to IP
 
         packet_in_flight = TCPPacketInFlight(packet, associated_ack)
+
         self.packets_in_flight.append(packet_in_flight)
 
         IP.sendTCPPacketData(packet.toData())
@@ -96,14 +110,22 @@ class TCP(object):
 
             # Handle recieved data
 
+            
 
+        # Send more packets
 
+        if len(self.data_packets_to_send) == 0:
 
+            self.closeConnection()
 
+        else:
 
+            num_packets_to_send = max(0, (self.cwnd - len(self.data_packets_to_send)))
+            packets_to_send = self.data_packets_to_send[:num_packets_to_send]
 
-
-
+            for packet in packets_to_send:
+                self.data_packets_to_send.remove(packet)
+                self.sendPacket(packet)
 
     def getIncrementedSequenceNumber(number, num_bytes):
 
