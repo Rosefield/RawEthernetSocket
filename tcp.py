@@ -7,7 +7,7 @@ class TCP(object):
     max_packet_size = 1024
     max_sequence_number = 4294967295
     window_size = 65535
-    recv_size = 1024
+    recv_size = 65535
 
     def __init__(self, source_port, dest_port, data):
 
@@ -43,6 +43,8 @@ class TCP(object):
         self.openConnection()
 
         self.sequence_number = getIncrementedSequenceNumber(self.starting_sequence_number, 1)
+
+    def initializeSendBuffer(self):
 
         # Load the data packets for sending
 
@@ -112,9 +114,13 @@ class TCP(object):
 
         self.cwnd = MIN(1000, self.cwnd + 1)
 
-        # If this is an ACK, remove the associated packet from our in flight list
+        # Do different stuff based on flags
 
-        if packet.ack == 1:
+        if packet.syn == 1:
+
+            self.initializeSendBuffer()
+
+        else if packet.ack == 1:
 
             self.packets_in_flight = [packet_in_flight for packet_in_flight in self.packets_in_flight if packet_in_flight.associated_ack != packet.ack_number]
 
@@ -129,7 +135,7 @@ class TCP(object):
 
             
 
-        # Send more packets
+        # Send more packets if needed
 
         if len(self.data_packets_to_send) == 0:
 
