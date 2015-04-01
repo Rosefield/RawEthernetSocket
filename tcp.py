@@ -89,9 +89,12 @@ class TCP(object):
         # If this is an ACK, remove the associated packet from our in flight list
 
         if packet.ack == 1:
+
             self.packets_in_flight = [packet_in_flight for packet_in_flight in self.packets_in_flight if packet_in_flight.associated_ack != packet.ack_number]
 
-        # Remove the packet with the sequence number 
+        else:
+
+            # Handle recieved data
 
 
 
