@@ -7,8 +7,11 @@ class TCP(object):
     max_packet_size = 1024
     max_sequence_number = 4294967295
     window_size = 65535
+    recv_size = 1024
 
-    def __init__(self, source_port, dest_port):
+    def __init__(self, source_port, dest_port, data):
+
+        self.data = data
 
         self.source_port = source_port
         self.dest_port = dest_port
@@ -23,8 +26,17 @@ class TCP(object):
         self.data_packets_to_send = []
         self.packets_in_flight = []
 
+        # Create the port and start listening on it
 
-    def sendHTTPRequest(self, http_request):
+        self.socket = IPSocket()
+        self.socket.connect(source_port, dest_port)
+
+        while True:
+            data = self.socket.recv(recv_size) 
+            if data:
+                recieveData(data)
+
+    def sendData(self):
 
         # Initiate the handshake
 
@@ -34,17 +46,17 @@ class TCP(object):
 
         # Load the data packets for sending
 
-        while http_request != "":
+        while self.data != "":
 
-            segment = http_request[:TCP.max_sequence_number]
-            http_request = http_request[TCP.max_sequence_number:]
+            segment = self.data[:TCP.max_sequence_number]
+            self.data = self.data[TCP.max_sequence_number:]
 
             packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 0, 0, 0, segment)
             data_packets_to_send.append(packet)
 
             self.sequence_number = getIncrementedSequenceNumber(self.sequence_number, len(segment))
 
-    def openConnection(self, http_request):
+    def openConnection(self):
 
         SYNPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 1, 0, 0, "")
         self.sendPacket(SYNPacket)
@@ -71,7 +83,7 @@ class TCP(object):
 
         self.packets_in_flight.append(packet_in_flight)
 
-        IP.sendTCPPacketData(packet.toData())
+        self.socket.send(packet.toData())
 
     def packetTimedOut(self, tcp_packet_in_flight):
 
@@ -87,9 +99,9 @@ class TCP(object):
 
         self.sendPacket(tcp_packet_in_flight.tcp_packet)
 
-    def recieveTCPPacketData(self, tcp_packet_data):
+    def recieveData(self, data):
 
-        packet = TCPPacket.fromData(tcp_packet_data)
+        packet = TCPPacket.fromData(data)
 
         # Drop the packet if it's not valid
 
@@ -105,6 +117,11 @@ class TCP(object):
         if packet.ack == 1:
 
             self.packets_in_flight = [packet_in_flight for packet_in_flight in self.packets_in_flight if packet_in_flight.associated_ack != packet.ack_number]
+
+        else if packet.fin == 1:
+
+            s.shutdown(1)
+            s.close()
 
         else:
 
