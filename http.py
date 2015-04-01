@@ -15,23 +15,22 @@ class HTTPGet(object):
 
         request = 'GET ' + parsed_url.path + ' HTTP/1.1' + NL
         request += "Host: " + parsed_url.hostname + CRLF
-        data = makeRequest(url, request)
 
         TCP.sendHTTPRequest(request)
 
     def recieveHTTPResponse(self, http_response):
 
         if getStatusCode(http_response) == 200:
-            saveData(http_response)
+            self.saveData(http_response)
         else:
-            throwError()
+            self.throwError()
 
     def getStatusCode(self, http_response):
 
         try:
             return int(re.search("HTTP/1.1\s(\d+)\s", data).group(1))
         except AttributeError:
-            throwError()
+            self.throwError()
 
     def getBody(self, http_response):
 

@@ -7,12 +7,12 @@ class IP(object):
         self.source_address = source_address
         self.dest_address = dest_address
 
-    def sendTCPPacketData(tcp_packet_data):
+    def sendTCPPacketData(self, tcp_packet_data):
 
         # Send it
         # TODO: Handle timeout
 
-    def recieveIPPacketData(ip_packet_data):
+    def recieveIPPacketData(self, ip_packet_data):
 
         ip_packet = IPPacket.fromData(ip_packet_data)
 

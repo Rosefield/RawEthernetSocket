@@ -1,7 +1,7 @@
-from http import *
+import threading
 
-resp = ""
-get = HTTPGet('http://david.choffnes.com/classes/cs4700sp15/2MB.log')
+def hello(string):
+    print string
 
-print get.getFilename()
-
+t = threading.Timer(3.0, hello, ["test"])
+t.start() # after 30 seconds, "hello, world" will be printed
