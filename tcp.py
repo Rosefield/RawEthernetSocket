@@ -20,13 +20,20 @@ class TCP(object):
 
         self.cwnd = 1
 
-        self.sequence_number = random.randint(0, TCP.max_sequence_number)
+        # Send Stuff
+
         self.ack_number = 0
+        self.send_sequence_number = random.randint(0, TCP.max_sequence_number)
 
         self.data_packets_to_send = []
         self.packets_in_flight = []
 
-        # Create the port and start listening on it
+        # receive Stuff 
+
+        self.receive_initial_sequence_number = None
+        self.data_packets_received = []
+
+        # Initialize and listen on the socket
 
         self.socket = IPSocket()
         self.socket.connect(source_port, dest_port)
@@ -34,7 +41,7 @@ class TCP(object):
         while True:
             data = self.socket.recv(recv_size) 
             if data:
-                recieveData(data)
+                receiveData(data)
 
     def sendData(self):
 
@@ -67,6 +74,13 @@ class TCP(object):
 
         FINPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCP.window_size, 0, 1, 0, "")
         self.sendPacket(FINPacket)
+
+    def sendACKForPacket(self, packet):
+
+        sequence_number = packet.ack_number
+        ack_number = packet.sequence_number + len(packet.data)
+        ACKPacket = TCPPacket(self.source_port, self.dest_port, sequence_number, ack_number, TCP.window_size, 0, 0, 1, "")
+        self.sendPacket(ACKPacket)
 
     def sendPacket(self, packet):
 
@@ -101,7 +115,21 @@ class TCP(object):
 
         self.sendPacket(tcp_packet_in_flight.tcp_packet)
 
-    def recieveData(self, data):
+    def addreceivedPacketToBuffer(self, packet):
+
+        self.data_packets_received.append(packet)
+        self.data_packets_received.sort(key = lambda packet: (getIncrementedSequenceNumber(packet.sequence_number, (-1 * self.receive_initial_sequence_number))), reverse = False)
+
+    def convertreceivedBufferToData(self):
+
+        dataBuffer = ""
+
+        for received_packet in self.data_packets_received:
+            dataBuffer += received_packet.data
+
+        return dataBuffer
+
+    def receiveData(self, data):
 
         packet = TCPPacket.fromData(data)
 
@@ -109,31 +137,41 @@ class TCP(object):
 
         if not packet.isValid(self.source_port):
             return
-  
-        # Increment the congestion window since the packet was valid
-
-        self.cwnd = MIN(1000, self.cwnd + 1)
 
         # Do different stuff based on flags
 
         if packet.syn == 1:
 
+            self.receive_initial_sequence_number = getIncrementedSequenceNumber(packet.sequence_number, 1)
             self.initializeSendBuffer()
 
         else if packet.ack == 1:
 
             self.packets_in_flight = [packet_in_flight for packet_in_flight in self.packets_in_flight if packet_in_flight.associated_ack != packet.ack_number]
 
+            # Increment the congestion window
+
+            self.cwnd = MIN(999, self.cwnd + 1)
+
         else if packet.fin == 1:
 
-            s.shutdown(1)
-            s.close()
+            print self.convertreceivedBufferToData() # Do something with this
+
+            self.socket.close()
 
         else:
 
-            # Handle recieved data
+            # Drop the packet if we already have it
 
-            
+            for received_packet in self.data_packets_received:
+                if received_packet.sequence_number == packet.sequence_number:
+                    return
+
+            # If we don't have it, add it to the buffer and send an ACK
+
+            self.addreceivedPacketToBuffer(self.data_packets_received, packet)
+
+            self.sendACKForPacket(packet)
 
         # Send more packets if needed
 
