@@ -77,9 +77,9 @@ class TCPSocket(IPSocket):
         self.sendPacket(SYNPacket)
 
         #don't need to do anything, recv will take care of acking the packet
-        synack = self.recv()
+	while not self.connection_initialized:
+	    synack = self.recv()
 
-        self.connection_initialized = True
 
     def sendFin(self):
         FINPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0, 1, 1, "")
@@ -161,17 +161,18 @@ class TCPSocket(IPSocket):
             self.sendNextAck()
             self.packets_in_flight.pop()
             self.cwnd = min(999, self.cwnd +1)
+	    self.connection_initialized = True
             return
 
         #Already received this packet
         if self.ack_number > packet.sequence_number:
-            print "old packet", self.ack_number, packet.sequence_number
+            #print "old packet", self.ack_number, packet.sequence_number
             return
         elif packet.sequence_number > self.ack_number + TCPSocket.window_size:
-            print "packet outside of window", packet.sequence_number, self.ack_number
+            #print "packet outside of window", packet.sequence_number, self.ack_number
             return
         elif self.ack_number < packet.sequence_number:
-            print self.ack_number, packet.sequence_number
+           # print self.ack_number, packet.sequence_number
             self.addReceivedPacketToBuffer(packet)    
         else:
         
@@ -200,8 +201,9 @@ class TCPSocket(IPSocket):
             if packet.fin == 1:
         
                 self.received_fin = True        
+		self.ack_number += 1
         
-                print "received fin"
+              #  print "received fin"
                 self.sendNextAck()
                 self.teardown()
                 return
@@ -210,7 +212,7 @@ class TCPSocket(IPSocket):
             ret_data = packet.data
         
             for window_packet in self.receive_window:
-                print "checking window"
+             #   print "checking window"
                 if window_packet.sequence_number == self.ack_number:
                     ret_data += window_packet.data
                     self.ack_number += len(window_packet.data)

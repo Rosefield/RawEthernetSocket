@@ -17,20 +17,22 @@ host_name = urlparse.urlparse(url).hostname
 s = tcp.TCPSocket()
 s.connect((host_name, 80))
 
-print "connected"
+#print "connected"
 
 request = http.getRequestForURL(url)
 
-print "http request created"
+#print "http request created"
 
 s.send(request)
 
-print "sent"
+#print "sent"
 
 response = s.recvall()
 
-print "received response"
+#print "received response"
 
 http.saveResponse(response, url)
 
-print "saved response"
+#print "saved response"
+
+s.close()

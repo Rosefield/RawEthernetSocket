@@ -1,5 +1,5 @@
 import sys, os, struct, re, traceback, urlparse
-from bs4 import BeautifulSoup
+#from bs4 import BeautifulSoup
 
 NL = "\n"
 CRLF = "\r\n\r\n"

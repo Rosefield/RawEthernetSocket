@@ -66,8 +66,6 @@ class IPSocket(ethernet.EthernetSocket):
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	s.connect(('8.8.8.8', 80))
 	self.src_ip = s.getsockname()[0]
-	#self.src_ip = socket.gethostbyname(socket.gethostname())
-	print self.src_ip
 	self.src_ip = struct.unpack("!I", socket.inet_aton(self.src_ip))[0]
 	
 	#self.recv_sock.bind((self.src_ip, 0))
@@ -139,6 +137,7 @@ class IPSocket(ethernet.EthernetSocket):
 	packet = self.makeIpPacket(data)
 
 	self.id += 1
+	self.id %= 65536
 
 	return super(IPSocket, self).send(packet)
 
