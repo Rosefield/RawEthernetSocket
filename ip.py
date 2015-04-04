@@ -27,20 +27,7 @@ Header is of the form
 
 class IPHeader:
 
-    def __init__(self, source_address, dest_address):
-
-        self.ihl = 5
-        self.type_of_service = 0
-        self.total_length = 0
-        self.id = 0
-        self.fragmentation_offset = 0
-        self.ttl = 255
-        self.protocol = socket.IPPROTO_TCP
-        self.checksum = 0
-        self.source_address = source_address
-        self.dest_address = dest_address
-
-
+    #Deconstruct the header from packed data
     def __init__(self, data):
 
         unpacked = struct.unpack('!BBHHHBBHLL' , data)
@@ -55,6 +42,7 @@ class IPHeader:
         self.source_address = unpacked[8]
         self.dest_address = unpacked[9]
 
+    #construct packed data form of header
     def to_data():
         return struct.pack('!BBHHHBBHLL' , self.ihl, self.type_of_service, self.total_length, self.id, self.fragmentation_offset, self.ttl, self.protocol, self.checksum, self.source_address, self.dest_address)
 
@@ -62,15 +50,15 @@ class IPHeader:
 #Does not deal with receiving/sending fragments
 class IPSocket(ethernet.EthernetSocket):
     def __init__(self):
-	#horrible hack to get self ip since ubuntu resolves socket.gethostname() to 127.0.0.1
+	#horrible hack to get self ip since ubuntu resolves socket.gethostname() to 127.0.1.1
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	s.connect(('8.8.8.8', 80))
 	self.src_ip = s.getsockname()[0]
 	self.src_ip = struct.unpack("!I", socket.inet_aton(self.src_ip))[0]
 	
-	#self.recv_sock.bind((self.src_ip, 0))
-	#self.send_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+	#"Random" initial id value
 	self.id = 18
+	#empty string until we "connect" to a host
 	self.dest_ip = ""
 
 	super(IPSocket, self).__init__()
@@ -101,6 +89,7 @@ class IPSocket(ethernet.EthernetSocket):
 
 	header = header[:10] + checksum + header[12:20]
 
+	#Confirm that checksum was calculated correctly
 	calc_checksum = utils.calcIpChecksum(header)
 	if calc_checksum != 0:
 	    print "checksum calculated incorrectly: ", checksum, calc_checksum
@@ -113,16 +102,15 @@ class IPSocket(ethernet.EthernetSocket):
 
 	return packet
 
+    #Checks if the received header has a correct checksum, and the packet is directed to us
     def validIpPacket(self, header):
 	checksum = utils.calcIpChecksum(header)
 	if checksum != 0:
 	    print checksum
 	    return False    
 
-	#print packet
 	header = IPHeader(header)
 	if header.dest_address != self.src_ip or header.source_address != self.dest_ip:
-	 #   print socket.inet_ntoa(struct.pack("!L",header.dest_address)), socket.inet_ntoa(struct.pack("!L", header.source_address))
 	    return False
 
 
@@ -130,19 +118,21 @@ class IPSocket(ethernet.EthernetSocket):
 	
 
     def send(self, data):
+	#We aren't sending anything more than 100Bytes so we should never cause fragments
 	if len(data) > 1480:
 	   pass
 	    #fragment
 	
 	packet = self.makeIpPacket(data)
 
+	#Increment our ID and make sure it still fits within a 16bit value
 	self.id += 1
 	self.id %= 65536
 
 	return super(IPSocket, self).send(packet)
 
-	#return self.send_sock.sendto(packet, (str(self.dest_ip), 0))
 
+    #get packets until we find one that is valid and addressed to us
     def recv(self, bufsize):
 	data = None
 
@@ -157,8 +147,6 @@ class IPSocket(ethernet.EthernetSocket):
 	return data
 
     def connect(self, dest_ip):
-	
-
 	self.dest_ip = struct.unpack("!I", socket.inet_aton(dest_ip))[0]
 	#IP needed for arp
 	super(IPSocket, self).connect(self.src_ip)
@@ -170,10 +158,8 @@ class IPSocket(ethernet.EthernetSocket):
     def extractIpData(self, data):
 	return data[20:]
 
-    #TODO: implement function to close socket
+    #close the socket
     def close(self):
-
-
 	super(IPSocket, self).close()
 
 	return

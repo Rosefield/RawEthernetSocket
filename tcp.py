@@ -12,7 +12,7 @@ class TCPSocket(IPSocket):
 
     def __init__(self):
 
-
+	#Set tcp state
         self.source_port = random.randint(0, 65535)
         self.dest_port = 0
 
@@ -21,31 +21,25 @@ class TCPSocket(IPSocket):
         self.have_finned = False
         self.received_fin = False
 
-        # TCP Stuff
 
         self.cwnd = 1
 
-        # Send Stuff
 
         self.ack_number = 0
         self.sequence_number = random.randint(0, TCPSocket.max_sequence_number)
 
-        #self.data_packets_to_send = []
         self.packets_in_flight = []
-
-        # receive Stuff 
-
         self.receive_window = []
 
 
         self.recv_buf = ""
 
-        # Initialize and listen on the socket
-
+    
+	#initialize IP and Ethernet layers
         super(TCPSocket, self).__init__()
 
     
-
+    #Initialize connection to the remost host
     def connect(self, address):
         host, port = address
         self.dest_port = port
@@ -54,10 +48,12 @@ class TCPSocket(IPSocket):
     
         self.openConnection()
 
+    #Make header and send packet containing data
     def send(self, data):
         packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0,0,1, data)
         self.sendPacket(packet)
 
+    #Receives all data from the end host until a fin is sent
     def recvall(self):
         data = None
         while (not self.received_fin) and (not self.have_finned):
@@ -67,10 +63,13 @@ class TCPSocket(IPSocket):
                 self.recv_buf += data
         return self.recv_buf
 
+    #Receive an individual packet
     def recv(self):
         packet = super(TCPSocket, self).recv(TCPSocket.window_size)
         data = self.parsePacket(packet)
+	#return data
 
+    #Start TCP handshake with remote host
     def openConnection(self):
 
         SYNPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 1, 0, 0, "")
@@ -80,11 +79,12 @@ class TCPSocket(IPSocket):
 	while not self.connection_initialized:
 	    synack = self.recv()
 
-
+    #Construct and send a fin packet
     def sendFin(self):
         FINPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0, 1, 1, "")
         self.sendPacket(FINPacket)
 
+    #tcp fin - fin ack - ack sequence
     def teardown(self):
         if not self.have_finned:
             self.sendFin()
@@ -99,12 +99,13 @@ class TCPSocket(IPSocket):
         super(TCPSocket, self).close()
         return
     
-
+    #Acknowledge what we have already received
     def sendNextAck(self):
 
         ACKPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0, 0, 1, "")
         self.sendPacket(ACKPacket, add_to_window = False)
 
+    #Send a packet
     def sendPacket(self, packet, add_to_window = True):
 
         associated_ack = None
@@ -116,7 +117,7 @@ class TCPSocket(IPSocket):
         else:
             associated_ack = self.getIncrementedSequenceNumber(packet.sequence_number, len(packet.data))
 
-        # Add the in flight packet to our list and send it down to IP
+        # Add the in flight packet to our send window and send it down to IP
 
         packet_in_flight = TCPPacketInFlight(packet, associated_ack)
 
@@ -125,6 +126,7 @@ class TCPSocket(IPSocket):
 
         super(TCPSocket, self).send(packet.toData(self.src_ip, self.dest_ip))
 
+    #Resends a packet if tcp_packet_in_flight hits its timeout
     def packetTimedOut(self, tcp_packet_in_flight):
 
         # Reset cwnd since the packet was dropped
@@ -139,11 +141,13 @@ class TCPSocket(IPSocket):
 
         self.sendPacket(tcp_packet_in_flight.tcp_packet)
 
+    #Adds an out-of-order packet to our receive window
     def addReceivedPacketToBuffer(self, packet):
 
         self.receive_window.append(packet)
         self.receive_window.sort(key = lambda packet: (self.getIncrementedSequenceNumber(packet.sequence_number, (-1 * self.ack_number))), reverse = False)
 
+    #Parse an incoming packet, update tcp state, and ack / handle teardown as necessary
     def parsePacket(self, data):
 
         packet = TCPPacket.fromData(data)
@@ -154,6 +158,7 @@ class TCPSocket(IPSocket):
             return
 
 
+	#Special case if our connection is not initialized yet (still awaiting a syn ack)
         if not self.connection_initialized:
 
             self.ack_number = self.getIncrementedSequenceNumber(packet.sequence_number, 1)
@@ -168,29 +173,28 @@ class TCPSocket(IPSocket):
         if self.ack_number > packet.sequence_number:
             #print "old packet", self.ack_number, packet.sequence_number
             return
+	#Packet outside of our window
         elif packet.sequence_number > self.ack_number + TCPSocket.window_size:
             #print "packet outside of window", packet.sequence_number, self.ack_number
             return
+	#Packet within our window, but not the one we are expecting; add to window
         elif self.ack_number < packet.sequence_number:
            # print self.ack_number, packet.sequence_number
             self.addReceivedPacketToBuffer(packet)    
+	#The packet we are expecting to get (self.ack_number == packet.sequence_number)
         else:
-        
-            # Do different stuff based on flags
-
-
+	    
+	    #We ack up to the latest in-order packet received
             if packet.ack == 1:
-
-        
-                #Are we assuming that the ack confirms all packets up to that ack num, or just that specific packet
                 i = 0
+		#Check if the packet we received acks any of the packets we have sent already
                 for packet_in_flight in self.packets_in_flight:
                     if packet_in_flight.associated_ack <= packet.ack_number:
                         self.sequence_number += len(packet_in_flight.tcp_packet.data)
                         i += 1
                     else:
                         break
-
+		#Remove acked packets from send window
                 self.packets_in_flight = self.packets_in_flight[i:]
 
 
@@ -208,9 +212,12 @@ class TCPSocket(IPSocket):
                 self.teardown()
                 return
             
+	    #Don't deal with psh and urg flags
+
             self.ack_number += len(packet.data)
             ret_data = packet.data
         
+	    #check our receive window to see if the received packet allows us to return more data
             for window_packet in self.receive_window:
              #   print "checking window"
                 if window_packet.sequence_number == self.ack_number:
@@ -225,7 +232,7 @@ class TCPSocket(IPSocket):
 
                 break
         
-        
+	    #Ack everything we have received so far
             self.sendNextAck()
 
             return ret_data
@@ -252,6 +259,7 @@ class TCPPacket(object):
 
     def __init__(self, source_port, dest_port, sequence_number, ack_number, window, syn, fin, ack, data):
 
+	#TCP Header information
         self.source_port = source_port
         self.dest_port = dest_port
         self.sequence_number = sequence_number
@@ -269,6 +277,7 @@ class TCPPacket(object):
         self.urgent_pointer = 0
         self.data = data
 
+    #Convert data structure to packed network-endian form
     def toData(self, source_address, dest_address):
 
         # Construct the checksumless header

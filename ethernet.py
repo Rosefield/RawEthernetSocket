@@ -3,26 +3,29 @@ import socket
 import uuid
 
 class EthernetSocket(object):
+    #Constants from sys/ethernet.h
     ETH_P_IP = 0x0800
     ETH_P_ARP = 0x0806
     ETH_P_ALL = 0x0003
 
     def __init__(self):
-	#self.send_socket = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.IPPROTO_RAW)
 
 	self.broadcast_mac = "\xff\xff\xff\xff\xff\xff"
 
+	#We can only send to the broadcast mac until we know where the gateway is
 	self.dest_mac = self.broadcast_mac
-	#self.dest_mac = "\x00\x50\x56\xe8\xa2\x59"
 	self.src_mac = struct.pack("!Q", uuid.getnode())[2:]
 
 	#For my arch machine, use eth0 for everything else
+	#self.interface = "ens33"
 	self.interface = "eth0"
 
+	#Construct sockets. Due to linux oddities, there needs to be a separate socket for receiving and sending
 	self.send_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(EthernetSocket.ETH_P_ALL))
 	self.recv_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(EthernetSocket.ETH_P_ALL))
 	return
 
+    #Construct ethernet frame header and send data
     def send(self, data, eth_type = 0x0800):
 	header = struct.pack("!6s6sH", self.dest_mac, self.src_mac, eth_type)
 	#pack to minimum length
@@ -44,6 +47,7 @@ class EthernetSocket(object):
 
 	return data
 
+    #Checks if the received packet is destined for us
     def isValid(self, packet, desired_type):
 	unpacked = struct.unpack("!6s6sH", packet[:14])
 	dest_mac = unpacked[0]
@@ -66,6 +70,7 @@ class EthernetSocket(object):
 	return True
 
     #from stackoverflow.com/questions/2761829/python-get-default-gateway-for-a-local-interface-ip-address-in-linux
+    #Gets the address of the default gateway on our interface
     def get_default_gateway(self):
 	f = open("/proc/net/route")
 
@@ -76,7 +81,7 @@ class EthernetSocket(object):
 
 	    return fields[2]
 
-    #TODO: Implement ARP
+    #arps to find the gateway mac address so we can send packets
     def connect(self, src_ip):
 	#arp to find gateway
 
@@ -89,18 +94,20 @@ class EthernetSocket(object):
 	EthernetSocket.send(self, request.toData(), eth_type = EthernetSocket.ETH_P_ARP)
 
 	reply = None
+	#wait for ARP reply to our request
 	while reply == None:
 	    packet = EthernetSocket.recv(self, 1500, eth_type = EthernetSocket.ETH_P_ARP)
 	    packet = ArpPacket(packet)
 	    if packet.operation == 2 and packet.THA == self.src_mac and packet.TPA == src_ip:
 		reply = packet
 
-
+	#Grab mac address of gateway from the reply packet
 	self.dest_mac = reply.SHA
 
 	return
 
 
+    #Close sockets
     def close(self):
 	self.recv_sock.close()
 	self.send_sock.close()

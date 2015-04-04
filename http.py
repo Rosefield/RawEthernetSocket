@@ -4,6 +4,7 @@ import sys, os, struct, re, traceback, urlparse
 NL = "\n"
 CRLF = "\r\n\r\n"
 
+#Construct get request given a URL
 def getRequestForURL(url):
 
     parsed_url = urlparse.urlparse(url)
@@ -14,6 +15,7 @@ def getRequestForURL(url):
 
     return request
 
+#given an http response parse it and write to disk
 def saveResponse(http_response, url):
 
     if getStatusCode(http_response) == 200:
@@ -40,12 +42,14 @@ def throwError():
     traceback.print_exc()
     sys.exit()
 
+#Write data to disk
 def saveData(data, url):
 
     file = open(getFilenameforURL(url), 'w')
     file.write(data)
     file.close()
 
+#Find filename to write from url
 def getFilenameforURL(url):
 
     if url[-1] == '/':
