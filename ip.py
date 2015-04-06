@@ -2,6 +2,7 @@ import sys, os
 import struct
 import utils
 import socket
+import ethernet
 
 #Need to keep track of state for the Identification field and fragment offset
 
@@ -59,17 +60,22 @@ class IPHeader:
 
 
 #Does not deal with receiving/sending fragments
-class IPSocket(object):
+class IPSocket(ethernet.EthernetSocket):
     def __init__(self):
-	self.recv_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x800)) #Capture only IP packets 
-	self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-	self.src_ip = socket.gethostbyname(socket.gethostname())
+	#horrible hack to get self ip since ubuntu resolves socket.gethostname() to 127.0.0.1
+	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	s.connect(('8.8.8.8', 80))
+	self.src_ip = s.getsockname()[0]
+	#self.src_ip = socket.gethostbyname(socket.gethostname())
+	print self.src_ip
+	self.src_ip = struct.unpack("!I", socket.inet_aton(self.src_ip))[0]
 	
 	#self.recv_sock.bind((self.src_ip, 0))
-	self.send_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
-	self.src_ip = struct.unpack("!I", socket.inet_aton(self.src_ip))[0]
+	#self.send_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 	self.id = 18
 	self.dest_ip = ""
+
+	super(IPSocket, self).__init__()
 
 
     #Header always 20 Bytes as no options are used
@@ -109,8 +115,7 @@ class IPSocket(object):
 
 	return packet
 
-    def validIpPacket(self, packet):
-	header = self.extractIpHeader(packet)
+    def validIpPacket(self, header):
 	checksum = utils.calcIpChecksum(header)
 	if checksum != 0:
 	    print checksum
@@ -135,17 +140,20 @@ class IPSocket(object):
 
 	self.id += 1
 
-	return self.send_sock.sendto(packet, (str(self.dest_ip), 0))
+	return super(IPSocket, self).send(packet)
+
+	#return self.send_sock.sendto(packet, (str(self.dest_ip), 0))
 
     def recv(self, bufsize):
 	data = None
 
 	while data == None:
-	    packet = self.recv_sock.recv(65536)
-	    #skip ethernet header
-	    packet = packet[14:]
-	    if self.validIpPacket(packet):
-		data = self.extractIpData(packet)
+	    packet = super(IPSocket, self).recv(65536)
+	    header = packet[:20]
+	    if self.validIpPacket(header):
+		header = IPHeader(header)
+		#remove any possible trailing ethernet padding
+		data = packet[20: header.total_length]
 	
 	return data
 
@@ -153,6 +161,8 @@ class IPSocket(object):
 	
 
 	self.dest_ip = struct.unpack("!I", socket.inet_aton(dest_ip))[0]
+	#IP needed for arp
+	super(IPSocket, self).connect(self.src_ip)
 	return
 
     def extractIpHeader(self, data):
@@ -164,7 +174,7 @@ class IPSocket(object):
     #TODO: implement function to close socket
     def close(self):
 
-	self.recv_sock.close()
-	self.send_sock.close()
+
+	super(IPSocket, self).close()
 
 	return

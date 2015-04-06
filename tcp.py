@@ -65,11 +65,10 @@ class TCPSocket(IPSocket):
     def recv(self, bufsize, return_data = True):
 	if return_data:
 	    data = None
-	    while data == None:
+	    while data == None or len(data) == 0:
 		packet = super(TCPSocket, self).recv(bufsize)
 		data = self.parsePacket(packet)
 	    self.recv_buf += data
-
 	    data = self.recv_buf[:bufsize]
 	    self.recv_buf = self.recv_buf[bufsize:]
 	    return data
@@ -106,7 +105,7 @@ class TCPSocket(IPSocket):
 		return
 	while not self.received_fin:
 	    #We don't care about any more received data anyways, so throw it away
-	    self.recv(1000, return_data = False)
+	    self.recv(1500, return_data = False)
 
 	super(TCPSocket, self).close()
 	return
@@ -116,9 +115,9 @@ class TCPSocket(IPSocket):
 
 
         ACKPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0, 0, 1, "")
-        self.sendPacket(ACKPacket)
+        self.sendPacket(ACKPacket, add_to_window = False)
 
-    def sendPacket(self, packet):
+    def sendPacket(self, packet, add_to_window = True):
 
         associated_ack = None
 
@@ -131,9 +130,10 @@ class TCPSocket(IPSocket):
 
         # Add the in flight packet to our list and send it down to IP
 
-        packet_in_flight = TCPPacketInFlight(packet, associated_ack)
+	packet_in_flight = TCPPacketInFlight(packet, associated_ack)
 
-        self.packets_in_flight.append(packet_in_flight)
+	if add_to_window:
+	    self.packets_in_flight.append(packet_in_flight)
 
         super(TCPSocket, self).send(packet.toData(self.src_ip, self.dest_ip))
 
@@ -165,6 +165,7 @@ class TCPSocket(IPSocket):
         if not packet.isValid(self.src_ip, self.dest_ip, self.source_port):
             return
 
+
 	if not self.connection_initialized:
 
 	    self.ack_number = self.getIncrementedSequenceNumber(packet.sequence_number, 1)
@@ -176,8 +177,10 @@ class TCPSocket(IPSocket):
 
 	#Already received this packet
 	if self.ack_number > packet.sequence_number:
+	    print "old packet", self.ack_number, packet.sequence_number
 	    return
 	elif packet.sequence_number > self.ack_number + TCPSocket.window_size:
+	    print "packet outside of window", packet.sequence_number, self.ack_number
 	    return
 	elif self.ack_number < packet.sequence_number:
 	    print self.ack_number, packet.sequence_number
@@ -191,38 +194,35 @@ class TCPSocket(IPSocket):
 
 		
 		#Are we assuming that the ack confirms all packets up to that ack num, or just that specific packet
-	#	self.packets_in_flight = [packet_in_flight for packet_in_flight in self.packets_in_flight if packet_in_flight.associated_ack > packet.ack_number]
-		for i, packet_in_flight in enumerate(self.packets_in_flight):
-		    if packet_in_flight.associated_ack <= packet.ack:
+		i = 0
+		for packet_in_flight in self.packets_in_flight:
+		    if packet_in_flight.associated_ack <= packet.ack_number:
 			self.sequence_number += len(packet_in_flight.tcp_packet.data)
+			i += 1
 		    else:
 			break
 
-		self.packets_in_flight = self.packets_in_flight[i + 1:]
+		self.packets_in_flight = self.packets_in_flight[i:]
 
 
 		# Increment the congestion window
 
 		self.cwnd = min(999, self.cwnd + 1)
-		if len(packet.data) == 0:
-		    return
 
 	    if packet.fin == 1:
-
+	    
 		self.received_fin = True		
+		
+		print "received fin"
 		self.sendNextAck()
     		self.teardown()
-    
-		#print self.convertreceivedBufferToData() # Do something with this
+    		return
 		    
-	        
-	
-	    if len(packet.data) > 0:
-		print len(packet.data), ''.join(hex(ord(c)) for c in packet.data)
 	    self.ack_number += len(packet.data)
 	    ret_data = packet.data
 	    
 	    for window_packet in self.receive_window:
+		print "checking window"
 		if window_packet.sequence_number == self.ack_number:
 		    ret_data += window_packet.data
 		    self.ack_number += len(window_packet.data)
@@ -230,6 +230,7 @@ class TCPSocket(IPSocket):
 			self.received_fin = True
 			self.sendNextAck()
 			self.teardown()
+			return ret_data
     		    receive_window.remove(window_packet)
 
 		break

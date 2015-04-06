@@ -1,6 +1,5 @@
 import sys, os, socket
 import urlparse
-import ip
 import tcp
 import struct
 
@@ -22,7 +21,8 @@ s.connect((host_name, 80))
 
 print "connected"
 
-s.send("GET / HTTP/1.1\nHost: david.choffnes.com\r\n\r\n")
+
+s.send("GET / HTTP/1.1\nHost: rosefield.org\r\n\r\n")
 
 print "sent"
 
@@ -30,6 +30,5 @@ packet = s.recv(1500)
 print packet
 
 print 'received'
-
 s.close()
 print "closed the socket"
