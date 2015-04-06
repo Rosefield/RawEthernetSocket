@@ -62,9 +62,12 @@ class IPHeader:
 #Does not deal with receiving/sending fragments
 class IPSocket(ethernet.EthernetSocket):
     def __init__(self):
-	#self.recv_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x800)) #Capture only IP packets 
-	#self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-	self.src_ip = socket.gethostbyname(socket.gethostname())
+	#horrible hack to get self ip since ubuntu resolves socket.gethostname() to 127.0.0.1
+	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	s.connect(('8.8.8.8', 80))
+	self.src_ip = s.getsockname()[0]
+	#self.src_ip = socket.gethostbyname(socket.gethostname())
+	print self.src_ip
 	self.src_ip = struct.unpack("!I", socket.inet_aton(self.src_ip))[0]
 	
 	#self.recv_sock.bind((self.src_ip, 0))

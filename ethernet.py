@@ -17,7 +17,7 @@ class EthernetSocket(object):
 	self.src_mac = struct.pack("!Q", uuid.getnode())[2:]
 
 	#For my arch machine, use eth0 for everything else
-	self.interface = "ens33"
+	self.interface = "eth0"
 
 	self.send_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(EthernetSocket.ETH_P_ALL))
 	self.recv_sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(EthernetSocket.ETH_P_ALL))
