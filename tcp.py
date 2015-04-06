@@ -321,7 +321,6 @@ class TCPPacket(object):
 
     def isValid(self, source_address, dest_address,  dest_port):
 
-
         # Validate the checksum
 
         data = self.toData(source_address, dest_address)
