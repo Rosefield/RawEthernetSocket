@@ -1,58 +1,54 @@
-import sys, os, struct, re, traceback 
+import sys, os, struct, re, traceback, urlparse
 from bs4 import BeautifulSoup
 
-NL = "\r"
+NL = "\n"
 CRLF = "\r\n\r\n"
 
-class HTTPGet(object):
+def getRequestForURL(url):
 
-    def __init__(self, url):
+    parsed_url = urlparse.urlparse(url)
+    host = parsed_url.hostname
+    path = parsed_url.path
 
-        self.url = url
+    request = "GET " + (path if (path != None and path != "") else "/") + " HTTP/1.1" + NL + "Host: " + host + CRLF
 
-    def execute(self):
+    return request
 
-        parsed_url = urlparse.urlparse(self.url)
+def saveResponse(http_response, url):
 
-        request = 'GET ' + parsed_url.path + ' HTTP/1.1' + NL
-        request += "Host: " + parsed_url.hostname + CRLF
+    if getStatusCode(http_response) == 200:
+        body = getBody(http_response)
+        saveData(body, url)
+    else:
+        throwError()
 
-        TCP.sendHTTPRequest(request)
+def getStatusCode(http_response):
 
-    def recieveHTTPResponse(self, http_response):
+    try:
+        return int(re.search("HTTP/1.1\s(\d+)\s", http_response).group(1))
+    except AttributeError:
+        throwError()
 
-        if getStatusCode(http_response) == 200:
-            self.saveData(http_response)
-        else:
-            self.throwError()
+def getBody(http_response):
 
-    def getStatusCode(self, http_response):
+    crlf_position = http_response.find(CRLF)
+    return http_response[(crlf_position + 4):]
 
-        try:
-            return int(re.search("HTTP/1.1\s(\d+)\s", data).group(1))
-        except AttributeError:
-            self.throwError()
+def throwError():
 
-    def getBody(self, http_response):
+    print "An error occured."
+    traceback.print_exc()
+    sys.exit()
 
-        crlf_position = http_reply.find(CRLF)
-        return http_response[(crlf_position + 4):]
+def saveData(data, url):
 
-    def throwError(self):
+    file = open(getFilenameforURL(url), 'w')
+    file.write(data)
+    file.close()
 
-        print "An error occured."
-        traceback.print_exc()
-        sys.exit()
+def getFilenameforURL(url):
 
-    def saveData(self, data):
-
-        file = open(getFilename(), 'w')
-        file.write(data)
-        file.close()
-
-    def getFilename(self):
-
-        if self.url[-1] == '/':
-            return "index.html"
-        else:
-            return self.url.split("/")[-1]
+    if url[-1] == '/':
+        return "index.html"
+    else:
+        return url.split("/")[-1]

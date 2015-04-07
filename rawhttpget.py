@@ -2,9 +2,7 @@ import sys, os, socket
 import urlparse
 import tcp
 import struct
-
-
-
+import http
 
 url = sys.argv[1]
 host_name = urlparse.urlparse(url).hostname
@@ -21,14 +19,22 @@ s.connect((host_name, 80))
 
 print "connected"
 
+request = http.getRequestForURL(url)
 
-s.send("GET / HTTP/1.1\nHost: rosefield.org\r\n\r\n")
+print "http request created"
+
+s.send(request)
 
 print "sent"
 
-packet = s.recv(1500)
-print packet
+response = s.recv(500000000)
 
-print 'received'
+print "received response"
+
+http.saveResponse(response, url)
+
+print "saved response"
+
 s.close()
+
 print "closed the socket"
