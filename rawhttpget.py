@@ -27,14 +27,10 @@ s.send(request)
 
 print "sent"
 
-response = s.recv(500000000)
+response = s.recvall()
 
 print "received response"
 
 http.saveResponse(response, url)
 
 print "saved response"
-
-s.close()
-
-print "closed the socket"

@@ -53,33 +53,23 @@ class TCPSocket(IPSocket):
         super(TCPSocket, self).connect(socket.gethostbyname(host))
     
         self.openConnection()
-    
-
-    def close(self):
-        self.teardown()
 
     def send(self, data):
         packet = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0,0,1, data)
         self.sendPacket(packet)
 
-    def recv(self, bufsize, return_data = True):
-        if return_data:
-            data = None
-            while data == None or len(data) == 0:
-                packet = super(TCPSocket, self).recv(bufsize)
-                data = self.parsePacket(packet)
-            self.recv_buf += data
-            data = self.recv_buf[:bufsize]
-            self.recv_buf = self.recv_buf[bufsize:]
-            return data
-        else:
-            packet = super(TCPSocket, self).recv(bufsize)
+    def recvall(self):
+        data = None
+        while (not self.received_fin) and (not self.have_finned):
+            packet = super(TCPSocket, self).recv(TCPSocket.window_size)
             data = self.parsePacket(packet)
-        
-            if data != None:
+            if data != None and data != "":
                 self.recv_buf += data
+        return self.recv_buf
 
-            return
+    def recv(self):
+        packet = super(TCPSocket, self).recv(TCPSocket.window_size)
+        data = self.parsePacket(packet)
 
     def openConnection(self):
 
@@ -87,11 +77,10 @@ class TCPSocket(IPSocket):
         self.sendPacket(SYNPacket)
 
         #don't need to do anything, recv will take care of acking the packet
-        synack = self.recv(1500, return_data = False)
+        synack = self.recv()
 
         self.connection_initialized = True
 
-    
     def sendFin(self):
         FINPacket = TCPPacket(self.source_port, self.dest_port, self.sequence_number, self.ack_number, TCPSocket.window_size, 0, 1, 1, "")
         self.sendPacket(FINPacket)
@@ -230,7 +219,7 @@ class TCPSocket(IPSocket):
                         self.sendNextAck()
                         self.teardown()
                         return ret_data
-                    receive_window.remove(window_packet)
+                    self.receive_window.remove(window_packet)
 
                 break
         
