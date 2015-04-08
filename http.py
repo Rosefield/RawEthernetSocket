@@ -11,7 +11,7 @@ def getRequestForURL(url):
     host = parsed_url.hostname
     path = parsed_url.path
 
-    request = "GET " + (path if (path != None and path != "") else "/") + " HTTP/1.1" + NL + "Host: " + host + CRLF
+    request = "GET " + (path if (path != None and path != "") else "/") + " HTTP/1.0" + NL + "Host: " + host + CRLF
 
     return request
 
