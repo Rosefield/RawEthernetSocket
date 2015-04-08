@@ -52,7 +52,9 @@ def saveData(data, url):
 #Find filename to write from url
 def getFilenameforURL(url):
 
-    if url[-1] == '/':
+    path = urlparse.urlparse(url).path
+
+    if path == '/' or path == '':
         return "index.html"
     else:
         return url.split("/")[-1]

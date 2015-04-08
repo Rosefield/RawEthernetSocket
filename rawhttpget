@@ -1,1 +1,1 @@
-python rawhttpget.py 
+python rawhttpget.py $@
