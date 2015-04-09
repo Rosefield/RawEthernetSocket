@@ -8,6 +8,8 @@ TCP was one of the biggest challenges because of its complexity. Since data is e
 
 For checksums, we created a utility function that took a generic packet and returned its checksum. One problem we faced was getting a correct checksum for TCP packets before we found out about the required pseudo-header.
 
+At the ethernet layer we construct the frame header and pad the data to the minimum ethernet frame size. Additionally, the ethernet layer takes care of getting the gateway's IP address from the system, then crafting an arp request (and waiting for a response) to get the MAC address of the gateway so that packets can be sent to the rest of the internet. Overall, the ethernet layer was pretty simple without too many gotchas.
+
 WORK DELEGATION:
 
 Work was done both independently and utilizing peer programming. Gavin did HTTP and Schuyler handled Ethernet. TCP and IP were done collaboratively.
